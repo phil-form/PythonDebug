@@ -1,3 +1,5 @@
+from flask import session
+
 from app.mappers.abstract_mapper import AbstractMapper
 from app.models.user import User
 from app.dtos.user_dto import UserDTO
@@ -23,7 +25,7 @@ class UserMapper(AbstractMapper):
             user.useremail = form.useremail.data
             user.userdescription = form.userdescription.data
 
-            if form.userroles.data is not []:
+            if user.tmp_roles and "ADMIN" in (session.get('userroles') or []):
                 form.manage_roles(user)
 
         elif isinstance(form, UserLoginForm):

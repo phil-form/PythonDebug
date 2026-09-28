@@ -1,3 +1,5 @@
+from email.mime import base
+
 from flask import session
 
 from app import db
@@ -5,9 +7,12 @@ from app.dtos.basket_dto import BasketDTO
 from app.forms.basket.basket_add_item_form import BasketAddItemForm
 from app.mappers.basket_mapper import BasketMapper
 from app.models.basket import Basket
+from app.models.basket_item import BasketItem
 from app.models.item import Item
 from app.models.user import User
 from app.services.base_service import BaseService
+
+from sqlalchemy import func
 
 
 class BasketService(BaseService):
@@ -22,21 +27,47 @@ class BasketService(BaseService):
         return BasketDTO.build_from_entity(basket)
 
     def order_report(self):
-        report = []
-        baskets = Basket.query.filter_by(basketclosed=True).all()
-        for basket in baskets:
-            user = User.query.filter_by(userid=basket.userid).first()
-            total = 0.0
-            for basket_item in basket.items:
-                total += basket_item.item.itemprice * basket_item.itemquantity
-            report.append({
+        rows = (
+            db.session.query(
+                Basket.basketid,
+                User.username,
+                User.useremail,
+                func.coalesce(func.sum(Item.itemprice * BasketItem.itemquantity), 0),
+                func.count(BasketItem.itemid)
+            )
+            .join(User, User.userid == BasketItem.userid)
+            .outerjoin(BasketItem, BasketItem.basketid == Basket.basketid)
+            .outerjoin(Item, Item.itemid == BasketItem.itemid)
+            .filter(Basket.basketclosed.is_(True))
+            .group_by(Basket.basketid, User.username, User.useremail)
+        )
+
+        return [
+            {
                 'basketid': basket.basketid,
                 'username': user.username,
                 'useremail': user.useremail,
                 'total': total,
-                'itemcount': len(basket.items)
-            })
-        return report
+                'itemcount': cnt
+            } for (basket, user, total, cnt) in rows
+        ]
+
+        # report = []
+        # baskets = Basket.query.filter_by(basketclosed=True).all()
+        # for basket in baskets:
+        #     user = User.query.filter_by(userid=basket.userid).first()
+        #     total = 0.0
+        #     for basket_item in basket.items:
+        #         total += basket_item.item.itemprice * basket_item.itemquantity
+        #     report.append({
+        #         'basketid': basket.basketid,
+        #         'username': user.username,
+        #         'useremail': user.useremail,
+        #         'total': total,
+        #         'itemcount': len(basket.items)
+        #     })
+
+        # return report
 
     def insert(self, data):
         basket = Basket()
@@ -120,6 +151,19 @@ class BasketService(BaseService):
     def checkout_basket(self):
         userid = session.get('userid')
         basket = Basket.query.filter_by(userid=userid, basketclosed=False).first()
+
+        if basket is None:
+            return None
+
+        # forcer le typage
+        bi: BasketItem
+        for bi in basket.items:
+            if bi.itemquantity > bi.item.itemstock:
+                db.session.rollback()
+                raise ValueError("stock insufficient")
+
+            bi.item.itemquantity -= bi.itemquantity
+
         basket.basketclosed = True
 
         new_basket = Basket()

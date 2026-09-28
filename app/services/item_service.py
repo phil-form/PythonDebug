@@ -9,10 +9,15 @@ from app.services.base_service import BaseService
 
 class ItemService(BaseService):
     def find_all(self):
-        return [ItemDTO.build_from_entity(item) for item in Item.query.all()]
+        return [ItemDTO.build_from_entity(item) for item in Item.query.filter_by(active=True).all()]
 
     def find_one(self, entity_id: int):
-        return ItemDTO.build_from_entity(Item.query.filter_by(itemid=entity_id).one())
+        item = Item.query.filter_by(itemid=entity_id).one()
+
+        if item is None:
+            return None
+
+        return ItemDTO.build_from_entity(item)
 
     def find_one_by(self, **kwargs):
         return ItemDTO.build_from_entity(Item.query.filter_by(**kwargs).one())
@@ -31,11 +36,8 @@ class ItemService(BaseService):
         return [ItemDTO.build_from_entity(item) for item in items]
     
     def find_low_stock(self, threshold):
-        result = []
-        for item in Item.query.all():
-            if item.itemstock < threshold:
-                result.append(ItemDTO.build_from_entity(item))
-        return result
+        items = Item.query.filter_by(Item.itemstock < threshold).all()
+        return [ItemDTO.build_from_entity(item) for item in items]
 
     def insert(self, data):
         item = Item()
@@ -47,6 +49,7 @@ class ItemService(BaseService):
         except Exception as e:
             print(e)
             db.session.rollback()
+            raise e
 
         return self.find_one(item.itemid)
 

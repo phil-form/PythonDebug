@@ -24,8 +24,9 @@ class Basket(BaseEntity, db.Model):
             basket_item.item = item
             basket_item.basket = self
             self.items.append(basket_item)
-
-        basket_item.itemquantity = quantity
+            basket_item.itemquantity = quantity
+        else:
+            basket_item.itemquantity += quantity
 
         return (basket_item, exist)
 

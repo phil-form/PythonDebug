@@ -49,7 +49,7 @@ class Injector:
 
     def __request_end(self, response):
         sessionid = self.__get_session_id()
-        self.__scoped[sessionid] = {}
+        self.__scoped.pop(sessionid)
         return response
 
     def __getitem__(self, item):

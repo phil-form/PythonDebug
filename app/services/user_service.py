@@ -1,6 +1,8 @@
 from flask import session
+from sqlalchemy.orm import selectinload, joinedload
 
 from app import db
+from sqlalchemy import func
 from app.dtos.user_dto import UserDTO
 from app.forms.user.user_login_form import UserLoginForm
 from app.forms.user.user_register_form import UserRegisterForm
@@ -8,6 +10,7 @@ from app.forms.user.user_update_form import UserUpdateForm
 from app.models.basket import Basket
 from app.models.role import Role
 from app.models.user import User
+from app.models.user_role import UserRole
 from app.services.base_service import BaseService
 from app.mappers.user_mapper import UserMapper
 import bcrypt
@@ -15,10 +18,23 @@ import bcrypt
 
 class UserService(BaseService):
     def find_all(self):
-        return [UserMapper.entity_to_dto(user) for user in User.query.filter_by(active=True).all()]
+        users = (
+            User.query.filter_by(active=True)
+                .options(
+                    joinedload(User.roles)
+                        .joinedload(UserRole.rel_role)
+                 )
+            .all()
+        )
+        return [UserMapper.entity_to_dto(user) for user in users]
 
     def find_one(self, entity_id: int):
-        return UserMapper.entity_to_dto(User.query.filter_by(userid=entity_id).first())
+        user = User.query.filter_by(userid=entity_id).first()
+
+        if user is None:
+            return None
+
+        return UserMapper.entity_to_dto(user)
 
     def find_one_by(self, **kwargs) -> User:
         return User.query.filter_by(**kwargs).first()
@@ -71,9 +87,12 @@ class UserService(BaseService):
     def delete(self, entity_id: int):
         user = User.query.filter_by(userid=entity_id).first()
 
-        if user is not None:
-            db.session.delete(user)
-            db.session.commit()
+        if user is None:
+            return None
+
+        user.active = False
+        user.deletedate = func.now()
+        db.session.commit()
 
         return user.userid
 
