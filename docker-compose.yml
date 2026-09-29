@@ -53,5 +53,24 @@ services:
     volumes:
       - app-volume:/var/lib/postgresql/data
 
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=Test1234=
+      - PGADMIN_LISTEN_PORT=8081
+    ports:
+      # 8081 -> PGADMIN_LISTEN_PORT
+      # le port à droite doit obligatoirement être lié au PGADMIN_LISTEN_PORT
+      # ou 80 par défaut
+      # Toute modification de ports doit être suivie d'un :
+      # docker compose up SERVICE_NAME -d
+      - 8081:8081
+
+    volumes:
+      - pgadmin-volume:/var/lib/pgadmin
+      - ./pgadmin_config/servers.json:/pgadmin4/servers.json
+
 volumes:
   app-volume:
+  pgadmin-volume:
